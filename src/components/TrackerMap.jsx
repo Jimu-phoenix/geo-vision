@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'preact/hooks'
+import { useState, useEffect, useRef } from 'preact/hooks'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { MapLayerSwitcher, LAYERS } from './MapLayerSwitcher'
 
 // Fix Leaflet's default icon path issue with bundlers
 delete L.Icon.Default.prototype._getIconUrl
@@ -31,21 +32,38 @@ export function TrackerMap({ devices, ownDeviceId }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef({})
+  const tileLayersRef = useRef({})
+  const [activeLayer, setActiveLayer] = useState('dark')
 
   // Init map once
   useEffect(() => {
     if (mapInstanceRef.current) return
-    mapInstanceRef.current = L.map(mapRef.current, {
-      center: [-13.9626, 33.7741], // Lilongwe default
+    const map = L.map(mapRef.current, {
+      center: [-13.9626, 33.7741],
       zoom: 14,
       zoomControl: true,
     })
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 19,
-    }).addTo(mapInstanceRef.current)
+    // Create all tile layers, only add the default
+    LAYERS.forEach((layer) => {
+      const tl = L.tileLayer(layer.url, {
+        attribution: layer.attribution,
+        maxZoom: 19,
+      })
+      tileLayersRef.current[layer.key] = tl
+      if (layer.key === 'dark') tl.addTo(map)
+    })
+
+    mapInstanceRef.current = map
   }, [])
+
+  const handleLayerChange = (key) => {
+    const map = mapInstanceRef.current
+    if (!map) return
+    map.removeLayer(tileLayersRef.current[activeLayer])
+    tileLayersRef.current[key].addTo(map)
+    setActiveLayer(key)
+  }
 
   // Update markers on devices change
   useEffect(() => {
@@ -60,12 +78,10 @@ export function TrackerMap({ devices, ownDeviceId }) {
       const isOwn = device_id === ownDeviceId
 
       if (markersRef.current[device_id]) {
-        // Update existing marker
         markersRef.current[device_id].marker.setLatLng(latlng)
         markersRef.current[device_id].circle.setLatLng(latlng)
         if (accuracy) markersRef.current[device_id].circle.setRadius(accuracy)
       } else {
-        // Create new marker + accuracy circle
         const marker = L.marker(latlng, { icon: makeIcon(isOwn) })
           .addTo(map)
           .bindPopup(`<b>${label || device_id}</b><br>±${Math.round(accuracy || 0)}m`)
@@ -82,7 +98,6 @@ export function TrackerMap({ devices, ownDeviceId }) {
       }
     })
 
-    // Remove stale markers
     Object.keys(markersRef.current).forEach((id) => {
       if (!seen.has(id)) {
         markersRef.current[id].marker.remove()
@@ -91,11 +106,21 @@ export function TrackerMap({ devices, ownDeviceId }) {
       }
     })
 
-    // Pan to own device if present
     if (ownDeviceId && markersRef.current[ownDeviceId]) {
       map.panTo(markersRef.current[ownDeviceId].marker.getLatLng())
     }
   }, [devices, ownDeviceId])
 
-  return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div class="relative w-full h-full">
+      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      {mapInstanceRef.current && (
+        <MapLayerSwitcher
+          map={mapInstanceRef.current}
+          activeKey={activeLayer}
+          onLayerChange={handleLayerChange}
+        />
+      )}
+    </div>
+  )
 }

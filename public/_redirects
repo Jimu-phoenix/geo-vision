@@ -1,0 +1,3 @@
+/*  Netlify — serve index.html for all routes (clean URLs)  */
+/*  https://docs.netlify.com/routing/redirects/rewrites-overview/  */
+/*  /index.html   200

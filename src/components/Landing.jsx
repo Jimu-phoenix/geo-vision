@@ -1,7 +1,8 @@
 import { useState } from 'preact/hooks'
+import { route } from 'preact-router'
 import { SetupModal } from './SetupModal'
 
-export function Landing({ onConfirm, onMeasure }) {
+export function Landing({ onConfirm }) {
   const [showSetup, setShowSetup] = useState(false)
 
   if (showSetup) {
@@ -24,7 +25,7 @@ export function Landing({ onConfirm, onMeasure }) {
             GET STARTED
           </button>
           <button
-            onClick={onMeasure}
+            onClick={() => route('/measure')}
             class="px-8 py-3 border border-border rounded font-mono text-sm tracking-widest cursor-pointer transition-all duration-150 text-muted hover:text-[#e8e8e8] hover:border-muted"
           >
             MEASURE AREA

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
+import { route } from 'preact-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { shoelaceArea, areaUncertainty, formatArea } from '../utils/area'
-import { Menu } from 'lucide-react'
+import { MapLayerSwitcher, LAYERS } from './MapLayerSwitcher'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -46,19 +47,20 @@ function makePositionIcon() {
   })
 }
 
-export function MeasureArea({ position, geoError, watching, onStart, onStop, onBack }) {
+export function MeasureArea({ position, geoError, watching, onStart, onStop, sidebarOpen }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const vertexMarkersRef = useRef([])
   const positionMarkerRef = useRef(null)
   const lineRef = useRef(null)
   const polygonRef = useRef(null)
+  const tileLayersRef = useRef({})
 
   const [points, setPoints] = useState([])
   const [done, setDone] = useState(false)
   const [area, setArea] = useState(null)
   const [uncertainty, setUncertainty] = useState(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activeLayer, setActiveLayer] = useState('dark')
 
   // Init map
   useEffect(() => {
@@ -68,12 +70,26 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
       zoom: 16,
       zoomControl: true,
     })
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 19,
-    }).addTo(map)
+
+    LAYERS.forEach((layer) => {
+      const tl = L.tileLayer(layer.url, {
+        attribution: layer.attribution,
+        maxZoom: 19,
+      })
+      tileLayersRef.current[layer.key] = tl
+      if (layer.key === 'dark') tl.addTo(map)
+    })
+
     mapInstanceRef.current = map
   }, [])
+
+  const handleLayerChange = useCallback((key) => {
+    const map = mapInstanceRef.current
+    if (!map) return
+    map.removeLayer(tileLayersRef.current[activeLayer])
+    tileLayersRef.current[key].addTo(map)
+    setActiveLayer(key)
+  }, [activeLayer])
 
   // Auto-start GPS on mount
   useEffect(() => {
@@ -332,7 +348,7 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
         {/* Back button */}
         <div class="px-4 py-3 border-t border-border min-w-[16rem]">
           <button
-            onClick={onBack}
+            onClick={() => route('/')}
             class="block w-full px-3.5 py-2 border border-border rounded font-mono text-[11px] tracking-[0.1em] cursor-pointer transition-all duration-150 text-center text-muted hover:text-[#e8e8e8] hover:border-muted"
           >
             ← Back
@@ -344,14 +360,13 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
       <main class="flex-1 relative overflow-hidden z-0">
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
-        {/* Sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          class="absolute top-3 left-3 z-[999] w-8 h-8 flex items-center justify-center bg-surface border border-border rounded cursor-pointer text-muted hover:text-[#e8e8e8] hover:border-muted transition-colors duration-150"
-          title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          <Menu size={14} />
-        </button>
+        {mapInstanceRef.current && (
+          <MapLayerSwitcher
+            map={mapInstanceRef.current}
+            activeKey={activeLayer}
+            onLayerChange={handleLayerChange}
+          />
+        )}
 
         {geoError && (
           <div class="absolute top-3 left-1/2 -translate-x-1/2 z-[999] font-mono text-[10px] text-danger bg-[#ff4d6d18] px-3 py-1.5 rounded border border-[#ff4d6d44]">
