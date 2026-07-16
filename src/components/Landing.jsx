@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks'
 import { SetupModal } from './SetupModal'
 
-export function Landing({ onConfirm }) {
+export function Landing({ onConfirm, onMeasure }) {
   const [showSetup, setShowSetup] = useState(false)
 
   if (showSetup) {
@@ -16,12 +16,20 @@ export function Landing({ onConfirm }) {
         <p class="text-muted text-[15px] max-w-md leading-relaxed mb-10">
           Track your devices in real time on a shared map. Share your Group ID with friends to see each other's locations.
         </p>
-        <button
-          onClick={() => setShowSetup(true)}
-          class="px-8 py-3 border border-accent rounded font-mono text-sm tracking-widest cursor-pointer transition-all duration-150 text-accent hover:bg-accent hover:text-black"
-        >
-          GET STARTED
-        </button>
+        <div class="flex gap-4">
+          <button
+            onClick={() => setShowSetup(true)}
+            class="px-8 py-3 border border-accent rounded font-mono text-sm tracking-widest cursor-pointer transition-all duration-150 text-accent hover:bg-accent hover:text-black"
+          >
+            GET STARTED
+          </button>
+          <button
+            onClick={onMeasure}
+            class="px-8 py-3 border border-border rounded font-mono text-sm tracking-widest cursor-pointer transition-all duration-150 text-muted hover:text-[#e8e8e8] hover:border-muted"
+          >
+            MEASURE AREA
+          </button>
+        </div>
       </section>
 
       <section class="px-6 py-24 max-w-2xl mx-auto">

@@ -3,6 +3,7 @@ import { Menu, X } from 'lucide-react'
 import { TrackerMap } from './components/TrackerMap'
 import { DevicePanel } from './components/DevicePanel'
 import { Landing } from './components/Landing'
+import { MeasureArea } from './components/MeasureArea'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useTracker } from './hooks/useTracker'
 import { broadcastPosition, removeDevice } from './services/locationService'
@@ -15,6 +16,7 @@ export function App() {
   const identityRef = useRef(identity)
   identityRef.current = identity
 
+  const [mode, setMode] = useState(null) // null | 'track' | 'measure'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [clearing, setClearing] = useState(false)
 
@@ -28,6 +30,10 @@ export function App() {
   const handleSetup = (id) => {
     localStorage.setItem('trackr_identity', JSON.stringify(id))
     setIdentity(id)
+  }
+
+  const handleMeasure = () => {
+    setMode('measure')
   }
 
   useEffect(() => {
@@ -90,8 +96,38 @@ export function App() {
     return () => window.removeEventListener('pagehide', onPageHide)
   }, [])
 
+  if (mode === 'measure') {
+    return (
+      <div class="flex flex-col h-screen bg-bg text-[#e8e8e8] font-sans overflow-hidden">
+        <header class="flex items-center justify-between px-5 h-12 bg-surface border-b border-border shrink-0">
+          <div class="flex items-center gap-3.5">
+            <span class="font-mono text-sm font-bold tracking-[0.2em] text-accent">TRACKR</span>
+            <span class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.15em] text-[#a78bfa]">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#a78bfa] animate-pulse" /> MEASURE
+            </span>
+          </div>
+          <div class="flex items-center gap-3.5">
+            {geoError && (
+              <span class="font-mono text-[10px] text-danger bg-[#ff4d6d18] px-2 py-0.5 rounded border border-[#ff4d6d44]">
+                ⚠ {geoError}
+              </span>
+            )}
+          </div>
+        </header>
+        <MeasureArea
+          position={position}
+          geoError={geoError}
+          watching={watching}
+          onStart={start}
+          onStop={stop}
+          onBack={() => { setMode(null); stop() }}
+        />
+      </div>
+    )
+  }
+
   if (!identity) {
-    return <Landing onConfirm={handleSetup} />
+    return <Landing onConfirm={handleSetup} onMeasure={handleMeasure} />
   }
 
   return (
