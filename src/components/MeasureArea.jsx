@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { shoelaceArea, formatArea } from '../utils/area'
+import { shoelaceArea, areaUncertainty, formatArea } from '../utils/area'
+import { Menu } from 'lucide-react'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -56,6 +57,8 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
   const [points, setPoints] = useState([])
   const [done, setDone] = useState(false)
   const [area, setArea] = useState(null)
+  const [uncertainty, setUncertainty] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // Init map
   useEffect(() => {
@@ -136,7 +139,10 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
 
   const recordPoint = useCallback(() => {
     if (!position || done) return
-    setPoints((prev) => [...prev, { lat: position.latitude, lng: position.longitude }])
+    setPoints((prev) => [
+      ...prev,
+      { lat: position.latitude, lng: position.longitude, accuracy: position.accuracy || 0 },
+    ])
   }, [position, done])
 
   const undo = useCallback(() => {
@@ -147,31 +153,41 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
     setPoints([])
     setDone(false)
     setArea(null)
+    setUncertainty(null)
   }, [])
 
   const finish = useCallback(() => {
     if (points.length < 3) return
     setArea(shoelaceArea(points))
+    setUncertainty(areaUncertainty(points))
     setDone(true)
   }, [points])
 
   const restart = useCallback(() => {
     setDone(false)
     setArea(null)
+    setUncertainty(null)
     setPoints([])
+  }, [])
+
+  const removePoint = useCallback((index) => {
+    setPoints((prev) => prev.filter((_, j) => j !== index))
   }, [])
 
   return (
     <div class="flex flex-1 overflow-hidden">
       {/* Sidebar */}
-      <aside class="bg-surface border-r border-border flex flex-col overflow-hidden h-full shrink-0 w-64">
-        <div class="flex items-center justify-between px-4 pt-3.5 pb-2.5 border-b border-border">
+      <aside
+        class="bg-surface border-r border-border flex flex-col overflow-hidden h-full shrink-0 transition-[width] duration-200"
+        style={{ width: sidebarOpen ? '16rem' : '0' }}
+      >
+        <div class="flex items-center justify-between px-4 pt-3.5 pb-2.5 border-b border-border min-w-[16rem]">
           <span class="font-mono text-[10px] tracking-[0.2em] text-muted">MEASURE AREA</span>
           <span class="font-mono text-[10px] text-accent">{points.length} points</span>
         </div>
 
         {/* Status */}
-        <div class="px-4 py-3.5 border-b border-border">
+        <div class="px-4 py-3.5 border-b border-border min-w-[16rem]">
           <div class="font-mono text-[9px] tracking-[0.15em] text-muted mb-2.5">STATUS</div>
           {done ? (
             <div>
@@ -182,6 +198,17 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
               <div class="font-mono text-[9px] text-muted mb-2.5">
                 {points.length} vertices
               </div>
+              {uncertainty && (
+                <div class="space-y-0.5 mb-2.5">
+                  <div class="font-mono text-[9px] tracking-[0.15em] text-muted">ACCURACY</div>
+                  <div class="font-mono text-[11px] text-[#e8e8e8]">
+                    ±{formatArea(uncertainty.rss)} <span class="text-muted">(statistical)</span>
+                  </div>
+                  <div class="font-mono text-[11px] text-muted">
+                    ±{formatArea(uncertainty.worst)} <span class="text-[9px]">(worst-case)</span>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div>
@@ -204,7 +231,7 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
         </div>
 
         {/* Actions */}
-        <div class="px-4 py-3.5 border-b border-border space-y-2">
+        <div class="px-4 py-3.5 border-b border-border space-y-2 min-w-[16rem]">
           {!done ? (
             <>
               <button
@@ -264,7 +291,7 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
         </div>
 
         {/* Point list */}
-        <div class="flex-1 overflow-y-auto py-2">
+        <div class="flex-1 overflow-y-auto py-2 min-w-[16rem]">
           {points.length === 0 && (
             <div class="px-4 py-6 font-mono text-[11px] text-muted text-center">
               No points recorded yet
@@ -286,10 +313,13 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
                 <div class="font-mono text-[9px] text-muted">
                   {p.lat.toFixed(6)}, {p.lng.toFixed(6)}
                 </div>
+                <div class="font-mono text-[9px] text-[#444]">
+                  ±{Math.round(p.accuracy)}m GPS
+                </div>
               </div>
               {!done && (
                 <button
-                  onClick={() => setPoints((prev) => prev.filter((_, j) => j !== i))}
+                  onClick={() => removePoint(i)}
                   class="font-mono text-[9px] text-muted cursor-pointer bg-transparent border-none p-0 hover:text-danger"
                 >
                   ✕
@@ -300,7 +330,7 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
         </div>
 
         {/* Back button */}
-        <div class="px-4 py-3 border-t border-border">
+        <div class="px-4 py-3 border-t border-border min-w-[16rem]">
           <button
             onClick={onBack}
             class="block w-full px-3.5 py-2 border border-border rounded font-mono text-[11px] tracking-[0.1em] cursor-pointer transition-all duration-150 text-center text-muted hover:text-[#e8e8e8] hover:border-muted"
@@ -313,6 +343,15 @@ export function MeasureArea({ position, geoError, watching, onStart, onStop, onB
       {/* Map */}
       <main class="flex-1 relative overflow-hidden z-0">
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+
+        {/* Sidebar toggle */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          class="absolute top-3 left-3 z-[999] w-8 h-8 flex items-center justify-center bg-surface border border-border rounded cursor-pointer text-muted hover:text-[#e8e8e8] hover:border-muted transition-colors duration-150"
+          title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          <Menu size={14} />
+        </button>
 
         {geoError && (
           <div class="absolute top-3 left-1/2 -translate-x-1/2 z-[999] font-mono text-[10px] text-danger bg-[#ff4d6d18] px-3 py-1.5 rounded border border-[#ff4d6d44]">
